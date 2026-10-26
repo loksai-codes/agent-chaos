@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-chaos"
+version = "0.1.0"
+description = "Chaos testing and resilience for tool-using AI agents"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.6", "typer>=0.12", "rich>=13.7", "PyYAML>=6.0", "matplotlib>=3.8", "openai>=1.30", "python-dotenv>=1.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[project.scripts]
+chaos = "agent_chaos.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_chaos"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+

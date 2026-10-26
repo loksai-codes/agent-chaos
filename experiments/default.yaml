@@ -1,0 +1,11 @@
+name: default
+agent: scripted
+seed: 42
+runs_per_cell: 30
+fault_rates: [0.0, 0.1, 0.2, 0.4]
+faults: [timeout, transient_error, rate_limit, malformed_output, schema_drift, empty_output, wrong_value]
+tasks: all
+conditions: [baseline, resilient, "ablation: retry", "ablation: validation", "without: redundancy"]
+resilience:
+  retry: {max_attempts: 4, base_delay_s: 0.5, factor: 2, max_delay_s: 8, jitter: true}
+  timeout_s: 5

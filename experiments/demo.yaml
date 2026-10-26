@@ -1,0 +1,8 @@
+name: demo
+agent: scripted
+seed: 42
+runs_per_cell: 15
+fault_rates: [0.0, 0.2]
+faults: [transient_error, schema_drift, wrong_value]
+tasks: all
+conditions: [baseline, resilient]
