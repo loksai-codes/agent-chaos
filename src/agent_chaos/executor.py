@@ -88,9 +88,10 @@ class ResilientExecutor:
                     return CallResult(value, False, attempts, extra, self.clock.now() - started)
                 except (ToolError, ValidationFailed) as exc:
                     last_error = exc
-                    if self.config.breaker_enabled:
-                        breaker.failure()
                     if attempts >= max_attempts or not self._retryable(exc):
+                        # Count one failed logical call, not every failed attempt inside it.
+                        if self.config.breaker_enabled:
+                            breaker.failure()
                         raise
                     self.metrics.retries += 1
                     delay = backoff_delay(attempts - 1, self.config.retry,

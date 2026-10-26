@@ -2,7 +2,7 @@ import pytest
 
 from agent_chaos.agents.scripted import ScriptedAgent, classify_outcome
 from agent_chaos.clock import VirtualClock
-from agent_chaos.errors import ToolTimeout
+from agent_chaos.errors import ToolTimeout, TransientError
 from agent_chaos.executor import ResilientExecutor
 from agent_chaos.faults import FaultConfig, FaultInjector
 from agent_chaos.resilience import ResilienceConfig
@@ -38,3 +38,28 @@ def test_timeout_fault_uses_virtual_time():
     with pytest.raises(ToolTimeout):
         executor.call("get_price", item="laptop")
     assert clock.now() > 5
+
+
+def test_call_succeeding_on_attempt_four_does_not_trip_breaker():
+    class ThreeTransientFailures(FaultInjector):
+        def __init__(self, clock):
+            super().__init__(seed=8, clock=clock)
+            self.attempt = 0
+
+        def apply(self, tool, value, timeout_s=None):
+            self.attempt += 1
+            if self.attempt <= 3:
+                raise TransientError("injected attempt failure")
+            return value
+
+    clock = VirtualClock()
+    faults = ThreeTransientFailures(clock)
+    config = ResilienceConfig.resilient()
+    config.retry.max_attempts = 4
+    executor = ResilientExecutor(faults=faults, clock=clock, config=config)
+
+    result = executor.call("get_price", item="laptop")
+
+    assert result.attempts == 4
+    assert result.value["price_usd"] == 1200
+    assert executor.metrics.breaker_trips == 0
