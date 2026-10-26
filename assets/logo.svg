@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 240" role="img" aria-labelledby="title desc">
+  <title id="title">agent-chaos</title>
+  <desc id="desc">A tool circuit being tested by a controlled lightning fault, with a protected green path.</desc>
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101b31"/>
+      <stop offset="1" stop-color="#182943"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd166"/>
+      <stop offset="1" stop-color="#ff7b54"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="944" height="224" rx="32" fill="url(#panel)"/>
+  <path d="M72 120h92m30 0h75" fill="none" stroke="#45d6a1" stroke-linecap="round" stroke-width="12"/>
+  <circle cx="58" cy="120" r="14" fill="#45d6a1"/>
+  <rect x="162" y="91" width="42" height="58" rx="12" fill="#45d6a1"/>
+  <path d="m248 72-22 40h28l-20 52 61-71h-32l20-21z" fill="url(#bolt)"/>
+  <path d="M310 120h46" fill="none" stroke="#647a9b" stroke-linecap="round" stroke-width="8" stroke-dasharray="7 12"/>
+  <text x="390" y="130" fill="#f4f7fb" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="66" font-weight="750" letter-spacing="-2">agent<tspan fill="#45d6a1">-</tspan>chaos</text>
+  <text x="394" y="174" fill="#a9bad2" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="20" letter-spacing="2.6">BREAK TOOLS. MEASURE RESILIENCE.</text>
+</svg>
