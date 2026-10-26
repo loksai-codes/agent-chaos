@@ -23,6 +23,7 @@ class Metrics:
     validation_failures: int = 0
     breaker_trips: int = 0
     degraded_calls: int = 0
+    tools_used: set[str] | None = None
 
 
 @dataclass
@@ -42,6 +43,7 @@ class ResilientExecutor:
         self.faults = faults or FaultInjector(seed, clock=self.clock)
         self.config = config or ResilienceConfig.baseline()
         self.metrics = Metrics()
+        self.metrics.tools_used = set()
         self._breakers: dict[str, CircuitBreaker] = {}
         self._fallback: dict[str, Any] = {}
         self._calls_seen: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
@@ -110,6 +112,8 @@ class ResilientExecutor:
                 self.metrics.breaker_trips = sum(item.trips for item in self._breakers.values())
 
     def _read(self, name: str, tool: Any, args: dict[str, Any]) -> tuple[Any, int]:
+        if self.metrics.tools_used is not None:
+            self.metrics.tools_used.add(name)
         reads = self.config.redundancy_reads if (self.config.redundancy_enabled and tool.read_only and name in self.config.redundancy_tools) else 1
         values = []
         for _ in range(reads):

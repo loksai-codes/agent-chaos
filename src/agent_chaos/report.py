@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -42,12 +42,41 @@ def build_report(data: dict[str, Any], out_path: str | Path, charts_dir: str | P
             lo, hi = wilson_interval(correct, len(sample))
             lines.append(f"| {fault} | {condition} | {correct / len(sample):.1%} ({lo:.1%}–{hi:.1%}) | {silent / len(sample):.1%} |")
     lines.extend(["", "## Ablation results", "", "| Fault | Condition | Success rate |", "|---|---|---:|"])
+    ablation_rows = 0
     for fault in faults:
         for condition in conditions:
             if condition.startswith(("ablation", "without")):
                 sample = group(fault, condition)
                 if sample:
                     lines.append(f"| {fault} | {condition} | {sum(row['outcome'] == 'correct' for row in sample) / len(sample):.1%} |")
+                    ablation_rows += 1
+    if not ablation_rows:
+        lines.append("| Ablations not run in this experiment | — | — |")
+
+    tool_outcomes: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
+    for row in rows:
+        for tool in row.get("tools_used", []):
+            if row["outcome"] in ("correct", "wrong_silent", "failed_loud"):
+                tool_outcomes[(tool, row["condition"])][row["outcome"]] += 1
+    lines.extend(["", "## Outcomes by tool", "",
+                  "Each run’s task outcome is attributed to every tool used by that task.", "",
+                  "| Tool | Condition | Correct | Wrong silent | Failed loud |", "|---|---|---:|---:|---:|"])
+    for (tool, condition), counts in sorted(tool_outcomes.items()):
+        total = sum(counts.values())
+        cells = [f"{counts[outcome] / total:.1%} ({counts[outcome]}/{total})" if total else "0.0% (0/0)"
+                 for outcome in ("correct", "wrong_silent", "failed_loud")]
+        lines.append(f"| {tool} | {condition} | {' | '.join(cells)} |")
+
+    wrong_value_rows = [row for row in rows if row["fault"] == "wrong_value" and row["rate"] == rate]
+    silent_by_tool: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
+    for row in wrong_value_rows:
+        for tool in row.get("tools_used", []):
+            silent_by_tool[(tool, row["condition"])][row["outcome"]] += 1
+    lines.extend(["", f"## Wrong-value silent failures by tool (rate {rate:g})", "",
+                  "| Tool | Condition | Silent failures |", "|---|---|---:|"])
+    for (tool, condition), counts in sorted(silent_by_tool.items()):
+        total = sum(counts.values())
+        lines.append(f"| {tool} | {condition} | {counts['wrong_silent'] / total:.1%} ({counts['wrong_silent']}/{total}) |")
     lines.extend(["", "## Overhead", "", "| Condition | Mean extra calls | Mean virtual latency (s) |", "|---|---:|---:|"])
     for condition in conditions:
         sample = [row for row in rows if row["condition"] == condition]

@@ -80,7 +80,9 @@ def run_experiment(config: ExperimentConfig) -> list[dict[str, Any]]:
                                      "tool_calls": metrics.tool_calls, "retries": metrics.retries,
                                      "extra_calls": metrics.extra_calls, "virtual_latency_s": clock.now(),
                                      "breaker_trips": metrics.breaker_trips,
-                                     "degraded": metrics.degraded_calls > 0, "error": result.error})
+                                     "degraded": metrics.degraded_calls > 0,
+                                     "tools_used": sorted(metrics.tools_used or set()),
+                                     "error": result.error})
     return rows
 
 
