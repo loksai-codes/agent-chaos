@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -110,8 +111,6 @@ def build_report(data: dict[str, Any], out_path: str | Path, charts_dir: str | P
             lines.append(f"- `{fault}`: resilient success {r:.1%}; silent failures {silent:.1%}. The measured improvement is not clearly separated from baseline or silent failures exceed 5%.")
     if not any(line.startswith("- `") for line in lines):
         lines.append("- No remaining issue met the report's configured thresholds in this sample.")
-    lines.extend(["", "## Charts", "", "![Success curves](degradation_curves.png)", "", "![Outcome mix](outcomes_stacked.png)", "", "![Ablation heatmap](ablation_heatmap.png)", ""])
-
     # Success by rate, one small panel per fault.
     fig, axes = plt.subplots(max(1, len(faults)), 1, figsize=(8, max(3, 2.6 * len(faults))), squeeze=False)
     for ax, fault in zip(axes[:, 0], faults):
@@ -170,6 +169,20 @@ def build_report(data: dict[str, Any], out_path: str | Path, charts_dir: str | P
     fig.savefig(charts / "ablation_heatmap.png", dpi=140)
     plt.close(fig)
 
+    report_path = Path(out_path)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    chart_names = ("degradation_curves.png", "outcomes_stacked.png", "ablation_heatmap.png")
+    for chart_name in chart_names:
+        chart_path = charts / chart_name
+        if not chart_path.is_file() or chart_path.stat().st_size == 0:
+            raise RuntimeError(f"Expected chart was not written: {chart_path}")
+    lines.extend(["", "## Charts", ""])
+    labels = ("Success curves", "Outcome mix", "Ablation heatmap")
+    for label, chart_name in zip(labels, chart_names):
+        relative_path = Path(os.path.relpath(charts / chart_name, report_path.parent)).as_posix()
+        lines.append(f"![{label}]({relative_path})")
+        lines.append("")
+
     report = "\n".join(lines)
-    Path(out_path).write_text(report, encoding="utf-8")
+    report_path.write_text(report, encoding="utf-8")
     return report

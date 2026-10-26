@@ -18,3 +18,7 @@ def test_report_includes_per_tool_outcomes_and_wrong_value_silence(tmp_path):
     assert "Fault rates: 0, 0.2." in report
     assert "| wrong_value | 0 | baseline |" in report
     assert "| Fault | Rate | Condition | Retry extra calls | Redundancy extra calls |" in report
+    for chart_name in ("degradation_curves.png", "outcomes_stacked.png", "ablation_heatmap.png"):
+        assert (tmp_path / "charts" / chart_name).is_file()
+        assert (tmp_path / "charts" / chart_name).stat().st_size > 0
+        assert f"](charts/{chart_name})" in report
