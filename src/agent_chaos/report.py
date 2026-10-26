@@ -25,33 +25,42 @@ def build_report(data: dict[str, Any], out_path: str | Path, charts_dir: str | P
     charts.mkdir(parents=True, exist_ok=True)
     faults = sorted({row["fault"] for row in rows})
     conditions = sorted({row["condition"] for row in rows})
+    rates = sorted({row["rate"] for row in rows})
 
     def group(fault: str, condition: str, selected_rate: float = rate) -> list[dict[str, Any]]:
         return [row for row in rows if row["fault"] == fault and row["condition"] == condition and row["rate"] == selected_rate]
 
+    config = data.get("config", {})
+    runs_per_cell = config.get("runs_per_cell", "unknown")
     lines = ["# agent-chaos experiment report", "", "## Setup", "",
-             f"Seed: {data.get('seed', 'unknown')}; recorded runs: {len(rows)}.", "",
-             "## Headline results", "", "| Fault | Condition | Success (95% Wilson CI) | Silent failure |", "|---|---|---:|---:|"]
+             f"Seed: {data.get('seed', config.get('seed', 'unknown'))}; runs per cell: {runs_per_cell}; recorded runs: {len(rows)}.",
+             f"Faults: {', '.join(faults) if faults else 'none'}.",
+             f"Fault rates: {', '.join(f'{value:g}' for value in rates) if rates else 'none'}.",
+             f"Conditions: {', '.join(conditions) if conditions else 'none'}.", "",
+             "## Headline results", "", "| Fault | Rate | Condition | Success (95% Wilson CI) | Silent failure |", "|---|---:|---|---:|---:|"]
     for fault in faults:
-        for condition in ["baseline", "resilient"]:
-            sample = group(fault, condition)
-            if not sample:
-                continue
-            correct = sum(row["outcome"] == "correct" for row in sample)
-            silent = sum(row["outcome"] == "wrong_silent" for row in sample)
-            lo, hi = wilson_interval(correct, len(sample))
-            lines.append(f"| {fault} | {condition} | {correct / len(sample):.1%} ({lo:.1%}–{hi:.1%}) | {silent / len(sample):.1%} |")
-    lines.extend(["", "## Ablation results", "", "| Fault | Condition | Success rate |", "|---|---|---:|"])
+        for selected_rate in rates:
+            for condition in ["baseline", "resilient"]:
+                sample = group(fault, condition, selected_rate)
+                if not sample:
+                    continue
+                correct = sum(row["outcome"] == "correct" for row in sample)
+                silent = sum(row["outcome"] == "wrong_silent" for row in sample)
+                lo, hi = wilson_interval(correct, len(sample))
+                lines.append(f"| {fault} | {selected_rate:g} | {condition} | {correct / len(sample):.1%} ({lo:.1%}–{hi:.1%}) | {silent / len(sample):.1%} |")
+    lines.extend(["", "## Ablation results", ""])
     ablation_rows = 0
     for fault in faults:
         for condition in conditions:
             if condition.startswith(("ablation", "without")):
                 sample = group(fault, condition)
                 if sample:
-                    lines.append(f"| {fault} | {condition} | {sum(row['outcome'] == 'correct' for row in sample) / len(sample):.1%} |")
+                    if not ablation_rows:
+                        lines.extend(["| Fault | Rate | Condition | Success rate |", "|---|---:|---|---:|"])
+                    lines.append(f"| {fault} | {rate:g} | {condition} | {sum(row['outcome'] == 'correct' for row in sample) / len(sample):.1%} |")
                     ablation_rows += 1
     if not ablation_rows:
-        lines.append("| Ablations not run in this experiment | — | — |")
+        lines.append("Ablations not run in this experiment")
 
     tool_outcomes: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
     for row in rows:
@@ -77,11 +86,16 @@ def build_report(data: dict[str, Any], out_path: str | Path, charts_dir: str | P
     for (tool, condition), counts in sorted(silent_by_tool.items()):
         total = sum(counts.values())
         lines.append(f"| {tool} | {condition} | {counts['wrong_silent'] / total:.1%} ({counts['wrong_silent']}/{total}) |")
-    lines.extend(["", "## Overhead", "", "| Condition | Mean extra calls | Mean virtual latency (s) |", "|---|---:|---:|"])
-    for condition in conditions:
-        sample = [row for row in rows if row["condition"] == condition]
-        if sample:
-            lines.append(f"| {condition} | {sum(r['extra_calls'] for r in sample) / len(sample):.2f} | {sum(r['virtual_latency_s'] for r in sample) / len(sample):.2f} |")
+    lines.extend(["", "## Overhead", "", "| Fault | Rate | Condition | Retry extra calls | Redundancy extra calls | Mean virtual latency (s) |", "|---|---:|---|---:|---:|---:|"])
+    for fault in faults:
+        for current_rate in rates:
+            for condition in conditions:
+                sample = [row for row in rows if row["fault"] == fault and row["rate"] == current_rate and row["condition"] == condition]
+                if sample:
+                    retry_extra = sum(r.get("retry_extra_calls", 0) for r in sample) / len(sample)
+                    redundancy_extra = sum(r.get("redundancy_extra_calls", 0) for r in sample) / len(sample)
+                    latency = sum(r["virtual_latency_s"] for r in sample) / len(sample)
+                    lines.append(f"| {fault} | {current_rate:g} | {condition} | {retry_extra:.2f} | {redundancy_extra:.2f} | {latency:.2f} |")
     lines.extend(["", "## What did not work", ""])
     for fault in faults:
         base, resilient = group(fault, "baseline"), group(fault, "resilient")
@@ -99,7 +113,6 @@ def build_report(data: dict[str, Any], out_path: str | Path, charts_dir: str | P
     lines.extend(["", "## Charts", "", "![Success curves](degradation_curves.png)", "", "![Outcome mix](outcomes_stacked.png)", "", "![Ablation heatmap](ablation_heatmap.png)", ""])
 
     # Success by rate, one small panel per fault.
-    rates = sorted({row["rate"] for row in rows})
     fig, axes = plt.subplots(max(1, len(faults)), 1, figsize=(8, max(3, 2.6 * len(faults))), squeeze=False)
     for ax, fault in zip(axes[:, 0], faults):
         for condition in conditions:

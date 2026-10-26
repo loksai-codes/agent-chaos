@@ -22,7 +22,8 @@ def demo() -> None:
     rows = run_experiment(config)
     out = ROOT / "results" / "demo"
     write_results(rows, out, config)
-    build_report({"seed": config.seed, "rows": rows}, out / "report.md", out / "charts", rate=.2)
+    build_report({"seed": config.seed, "config": config.model_dump(), "rows": rows},
+                 out / "report.md", out / "charts", rate=.2)
     table = Table(title="agent-chaos demo — scripted agent, simulated tools")
     for column in ("Fault", "Baseline success", "Resilient success", "Resilient silent failures"):
         table.add_column(column)

@@ -20,6 +20,8 @@ class Metrics:
     tool_calls: int = 0
     retries: int = 0
     extra_calls: int = 0
+    retry_extra_calls: int = 0
+    redundancy_extra_calls: int = 0
     validation_failures: int = 0
     breaker_trips: int = 0
     degraded_calls: int = 0
@@ -96,6 +98,7 @@ class ResilientExecutor:
                             breaker.failure()
                         raise
                     self.metrics.retries += 1
+                    self.metrics.retry_extra_calls += 1
                     delay = backoff_delay(attempts - 1, self.config.retry,
                                            random.Random(self.faults.seed + attempts))
                     if isinstance(exc, RateLimited):
@@ -116,12 +119,15 @@ class ResilientExecutor:
             self.metrics.tools_used.add(name)
         reads = self.config.redundancy_reads if (self.config.redundancy_enabled and tool.read_only and name in self.config.redundancy_tools) else 1
         values = []
-        for _ in range(reads):
+        for index in range(reads):
+            if index:
+                self.metrics.redundancy_extra_calls += 1
             self.metrics.tool_calls += 1
             values.append(self.faults.apply(name, tool.fn(**args), self.config.timeout_s if self.config.timeout_enabled else None))
         if reads == 1 or all(value == values[0] for value in values):
             return values[0], reads
         self.metrics.tool_calls += 1
+        self.metrics.redundancy_extra_calls += 1
         third = self.faults.apply(name, tool.fn(**args), self.config.timeout_s if self.config.timeout_enabled else None)
         values.append(third)
         for value in values:
